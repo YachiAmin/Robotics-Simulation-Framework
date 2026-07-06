@@ -1,77 +1,78 @@
-# 2D Robot Arm Forward Kinematics — n-link generalized
 import numpy as np
 import matplotlib.pyplot as plt
 
+class RobotArm:
 
-def rotation(theta_deg):
-    #2D rotation matrix.
-    rad = np.deg2rad(theta_deg)
-    c, s = np.cos(rad), np.sin(rad)
-    return np.array([[c, -s, 0],
-                     [s,  c, 0],
-                     [0,  0, 1]])
+#Made up of n links, connected by joints. 
 
-def translation(dx, dy):
-    #2D ous translation matrix.
-    return np.array([[1, 0, dx],
-                     [0, 1, dy],
-                     [0, 0,  1]])
+    def __init__(self, lengths, angles):
+        #save length of each link 
+        self.lengths = np.array(lengths)
+        #save angle of each joint at which it is bent 
+        self.angles = np.array(angles)
+        #joints added later
+        self.points = None
 
-def forward_kinematics(link_lengths, joint_angles):
-    """
-    Compute joint positions for an n-link planar robot.
+    def rotation(self, theta_deg):
+        rad = np.deg2rad(theta_deg)
+        c, s = np.cos(rad), np.sin(rad)
+        return np.array([[c, -s, 0],
+                         [s,  c, 0],
+                         [0,  0, 1]])
 
-    Args:
-        link_lengths : list of n floats
-        joint_angles : list of n floats (degrees)
+    def translation(self, dx, dy):
+        return np.array([[1, 0, dx],
+                         [0, 1, dy],
+                         [0, 0,  1]])
 
-    Returns:
-        points : (n+1, 2) array — base + one point per link
-    """
-    T = np.eye(3)
-    points = [np.array([0.0, 0.0])]          # base always at origin
+    def forward_kinematics(self):
+        #start at the origin
+        T = np.eye(3)
+        points = [np.array([0.0, 0.0])]
+        for length, angle in zip(self.lengths, self.angles):
+            T = T @ self.rotation(angle) @ self.translation(length, 0)
+            points.append((T @ np.array([0, 0, 1]))[:2])
+        #saving joint positions, plot them later
+        self.points = np.array(points)
+        return self.points
 
-    for length, angle in zip(link_lengths, joint_angles):
-        T = T @ rotation(angle) @ translation(length, 0)
-        point = T @ np.array([0, 0, 1])
-        points.append(point[:2])
+    
+#For moving the arm, passing the NEW ANGLES here
+    def update(self, new_angles):
+        #new angle check
+        if len(new_angles) != len(self.lengths):
+            raise ValueError("Number of angles must match number of links")
+        #update angles and recalculate everything
+        self.angles = np.array(new_angles)
+        self.forward_kinematics()
 
-    return np.array(points)
-
-
-def plot_arm(points, title="2D Robot Arm — Forward Kinematics"):
-    #Plot joint positions and links.
-    fig, ax = plt.subplots()
-    ax.plot(points[:, 0], points[:, 1], '-o',
-            linewidth=3, markersize=10, color='steelblue')
-
-    #Label base and end-effector
-    ax.annotate("Base", points[0], textcoords="offset points",
-                xytext=(5, 5), fontsize=9)
-    ax.annotate("End-effector", points[-1], textcoords="offset points",
-                xytext=(5, 5), fontsize=9)
-
-    total = sum(lengths)
-    ax.set_xlim(-total - 1, total + 1)
-    ax.set_ylim(-total - 1, total + 1)
-    ax.set_aspect('equal')
-    ax.grid(True)
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_title(title)
-    plt.tight_layout()
-    plt.show()
+    def plot(self):
+        #calculating the position now
+        if self.points is None:
+            self.forward_kinematics()
+        fig, ax = plt.subplots()
+        #line through the joint positions, adding dot in every joint
+        ax.plot(self.points[:, 0], self.points[:, 1], '-o',linewidth=3, markersize=10, color='steelblue')
+        ax.annotate("Base", self.points[0], xytext=(5, 5),textcoords="offset points")
+        ax.annotate("End-effector", self.points[-1], xytext=(5, 5),textcoords="offset points")
+        total = sum(self.lengths)
+        ax.set_xlim(-total - 1, total + 1)
+        ax.set_ylim(-total - 1, total + 1)
+        ax.set_aspect('equal')
+        ax.grid(True)
+        plt.show()
 
 
-# ── Configuration ─────────────────────────────────────────────────────────────
-lengths = np.ones(10)        # link lengths  (add/remove freely)
-angles  = np.random.randint(0,90,10)      # joint angles in degrees (must match lengths)
+# any number of links and angles 
 
-# ── Run ───────────────────────────────────────────────────────────────────────
-points = forward_kinematics(lengths, angles)
+lengths = [3, 2, 1.5, 1, 0.8]
+angles = [0, 45, -30, 20, -15]
 
-for i, p in enumerate(points):
-    label = "Base" if i == 0 else f"Joint {i}" if i < len(points) - 1 else "End-effector"
-    print(f"{label}: ({p[0]:.3f}, {p[1]:.3f})")
+robot = RobotArm(lengths, angles)
+points = robot.forward_kinematics()
 
-plot_arm(points)
+for i, point in enumerate(points):
+    print(f"Joint {i}: ({point[0]:.3f}, {point[1]:.3f})")
+    
+#draw the arm 
+robot.plot()
